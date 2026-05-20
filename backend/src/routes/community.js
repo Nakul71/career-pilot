@@ -38,6 +38,21 @@ const router = express.Router();
 // All routes require authentication
 router.use(verifyToken);
 
+// Restricts a route to UIDs listed in ADMIN_UIDS (comma-separated env var).
+// Must be placed after router.use(verifyToken) so req.user is already populated.
+const requireAdmin = (req, res, next) => {
+  const adminUIDs = (process.env.ADMIN_UIDS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  if (!adminUIDs.includes(req.user?.uid)) {
+    return res.status(403).json({ success: false, error: 'Admin access required' });
+  }
+
+  next();
+};
+
 // ============ CHANNEL ROUTES ============
 router.get('/channels', getChannels);
 router.get('/channels/:channelId', getChannel);
@@ -128,6 +143,7 @@ router.get('/presence/channel/:channelId/members', async (req, res, next) => {
 router.get('/search', searchCommunity);
 
 // ============ UTILITY ROUTES ============
-router.post('/fix-likes', fixPostLikeCounts);
+// requireAdmin enforces ADMIN_UIDS allowlist — prevents DoS via unbounded batch recalculation
+router.post('/fix-likes', requireAdmin, fixPostLikeCounts);
 
 export default router;
